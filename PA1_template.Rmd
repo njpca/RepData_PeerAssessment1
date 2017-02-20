@@ -5,21 +5,170 @@ output:
     keep_md: true
 ---
 
+```{r setup, include=FALSE, echo=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+
+#Loading required packages
+require(lubridate)
+require(ggplot2)
+require(dplyr)
+
+```
 
 ## Loading and preprocessing the data
 
+```{r}
 
+#Loading activity data from CSV
+activity<-read.csv(file = "activity.csv")
+
+#Converting date from factor to date class
+activity$date<-as.Date(activity$date)
+activity$steps<-as.numeric(activity$steps)
+activity$interval<-as.numeric(activity$interval)
+
+```
 
 ## What is mean total number of steps taken per day?
 
+###Daily Step Totals
+```{r}
+#Aggregating by day
+daytotals<-aggregate(x=activity$steps,by=list(activity$date),FUN=sum,na.rm=T)
+names(daytotals)<-c("Date","TotalSteps")
+print(daytotals,row.names = F)
+```
+
+###Histogram of the Daily Step Totals
+```{r}
+hist(daytotals$TotalSteps,main="Histogram of Total Steps per Day",xlab="Steps",ylab="Day Count",breaks=10)
+```
+
+###Mean of Daily Step Totals: 9354.23 steps per day
+```{r}
+mean(daytotals$TotalSteps)
+```
+
+###Median of Daily Step Totals: 10395 steps per day
+```{r}
+median(daytotals$TotalSteps)
+```
 
 
 ## What is the average daily activity pattern?
+```{r}
+intervalmeans<-aggregate(x=activity$steps,by=list(activity$interval),FUN=mean,na.rm=T)
+names(intervalmeans)<-c("Interval","MeanSteps")
+```
+
+###Interval Means Time-Series
+```{r}
+#Plotting the Average Number of Steps per Interval over One Day
+with(intervalmeans,plot(x = Interval,y= MeanSteps,type="l"))
+```
+
+###Interval with Highest Number of Average Steps: Interval 835
+```{r}
+#Finding maximum of the interval means
+intervalmeans[which.max(intervalmeans$MeanSteps),]
+```
+
+##Imputing Missing Values
+
+###How many observations contain a missing value? 2304 observations
+```{r}
+#Calculating the number of NA rows by subtracting complete rows by total number of rows
+nrow(activity)-sum(complete.cases(activity))
+
+```
+###Creating a New Dataset with Backfilled Missing Values
+```{r}
+
+#Strategy for filling missing values: This chunk selects rows which are incomplete and matches its intervals to the previously calculated interval means, then fills with that mean data.
+
+activityfilled<-activity
+
+for(i in 1:nrow(intervalmeans)){
+activityfilled[which(activityfilled[,3]==intervalmeans[i,1]&!complete.cases(activityfilled)),1]<-intervalmeans[i,2]
+}
+```
+
+###Histogram of the Daily Step Totals
+```{r}
+daytotalsfilled<-aggregate(x=activityfilled$steps,by=list(activityfilled$date),FUN=sum,na.rm=T)
+names(daytotalsfilled)<-c("Date","TotalSteps")
+
+print(daytotalsfilled,row.names = F)
+
+hist(daytotalsfilled$TotalSteps,main="Histogram of Total Steps per Day",xlab="Steps",ylab="Day Count",breaks=10)
+```
+
+###Mean of Daily Step Totals: 10766.19 steps per day
+```{r}
+
+mean(daytotalsfilled$TotalSteps)
+
+```
+
+###Median of Daily Step Totals: 10766.19 steps per day
+```{r}
+median(daytotalsfilled$TotalSteps)
+```
+
+###What is the impact of imputing missing data?
+The impact of imputing missing data increases both the mean and median number of steps, largely through the effect of eliminating days which would otherwise be 0 steps from the calculation of the mean and median. Additionally, because the days which previously had missing values were filled with the means of each hour, each of their totals is equal to the mean of daily totals, resulting in both the mean and median converging on one point, 10766.19 steps per day.
+
+##Are there differences in activity patterns between weekdays and weekends?
+
+```{r}
+#Labeling intervals by day of week and type (weekday/weekend)
+activity$weekday<-weekdays(activity$date)
+
+activity$daytype<-"NA"
+
+wkdylblr<-function(day){
+  if(any(day=="Saturday",day=="Sunday")){
+    paste(2)
+  }
+  else{paste(1)}
+}
+
+for(i in 1:nrow(activity)){
+  activity[i,5]<-wkdylblr(activity[i,4])
+}
+
+activity$daytype<-factor(activity$daytype,levels = c(1,2),labels=c("Weekday","Weekend"))
+
+```
+
+###Plotting Weekday and Weekend Steps
+```{r}
+
+#Generating interval means for Weekdays
+weekdays<-activity[activity$daytype=="Weekday",]
+
+wkdyintervalmeans<-aggregate(x=weekdays$steps,by=list(weekdays$interval),FUN=mean,na.rm=T)
+names(wkdyintervalmeans)<-c("Interval","MeanSteps")
+wkdyintervalmeans$DayType<-"Weekday"
+
+#Generating interval means for Weekends
+weekends<-activity[activity$daytype=="Weekend",]
+
+wkendsintervalmeans<-aggregate(x=weekends$steps,by=list(weekends$interval),FUN=mean,na.rm=T)
+names(wkendsintervalmeans)<-c("Interval","MeanSteps")
+wkendsintervalmeans$DayType<-"Weekend"
+
+#Combining Weekend and Weekday Data
+DayTypeMeans<-rbind(wkdyintervalmeans,wkendsintervalmeans)
+```
+
+```{r}
+#Plots
+
+str(DayTypeMeans)
+
+ggplot(DayTypeMeans, aes(x = Interval,y= MeanSteps)) + geom_line()+facet_grid(DayType~.)+ylab("Number of Steps")
 
 
+```
 
-## Imputing missing values
-
-
-
-## Are there differences in activity patterns between weekdays and weekends?
